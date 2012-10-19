@@ -1,4 +1,4 @@
-require './lib/dalli/version'
+require 'dalli/version'
 
 Gem::Specification.new do |s|
   s.name = %q{dalli}
