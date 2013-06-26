@@ -64,8 +64,6 @@ module ActiveSupport
             if race_ttl and Time.now.to_f - entry.expires_at <= race_ttl
               entry.expires_at = Time.now + race_ttl
               write_entry(name, entry, :expires_in => race_ttl * 2)
-            else
-              delete_entry(name, options)
             end
             entry = nil
           end
@@ -91,7 +89,7 @@ module ActiveSupport
         instrument(:read, name, options) do |payload|
           entry = read_entry(name, options)
           if entry.is_a?(ActiveSupport::Cache::Entry)
-            if entry.expired?
+            if entry.expired? && !options[:tolerate_expired]
               delete_entry(name, options)
               payload[:hit] = false if payload
               nil
@@ -111,7 +109,7 @@ module ActiveSupport
         name = expanded_key name
 
         instrument(:write, name, options) do |payload|
-          value = Entry.new(value, options) if options[:race_condition_ttl] && !options[:raw]
+          value = Entry.new(value, options) if (options[:race_condition_ttl] || options[:keep_expired_for]) && !options[:raw]
           write_entry(name, value, options)
         end
       end
@@ -231,9 +229,9 @@ module ActiveSupport
       def write_entry(key, value, options) # :nodoc:
         method = options[:unless_exist] ? :add : :set
         expires_in = options[:expires_in]
-        if expires_in.to_i > 0 && options[:race_condition_ttl] && !options[:raw]
+        if expires_in.to_i > 0 && options[:keep_expired_for] && !options[:raw]
           # Set the memcache expire a few minutes in the future to support race condition ttls on read
-          expires_in += 5.minutes
+          expires_in += options[:keep_expired_for].to_f
         end
         @data.send(method, escape(key), value, expires_in, options)
       rescue Dalli::DalliError => e

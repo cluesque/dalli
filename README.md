@@ -28,6 +28,19 @@ So a few notes.  Dalli:
  3. supports SASL for use in managed environments, e.g. Heroku.
  4. provides proper failover with recovery and adjustable timeouts
 
+cluesque fork
+------------
+
+The [mperham original](https://github.com/mperham/dalli) lost support for the useful `race_condition_ttl` feature supported by the old memcached and ActiveSupport to prevent turnstyling.  (See [discussion here](https://github.com/mperham/dalli/pull/277).)
+
+This fork restores that feature and adds the ability to tolerate answers that are a little bit stale, but without the `race_condition_ttl` extension of the stale answer indefinitely.
+
+### Extra options:
+ - **race_condition_ttl**: on `fetch`, an expired value will be extended by this number of seconds and written back to the store before yielding.  This way the first caller will perform the (presumably expensive) calculations in the yield, and subsequent callers will be able to keep using the (now getting stale) old value until that first caller completes the calculation and writes a new value to the store.
+ - **keep_expired_for**: on `write` (or `fetch` write), an entry will be tagged with the regular `expires_in` expiration, but will be written to the store with an expiration that's this much longer.  Use in conjunction with `tolerate_expired`
+ - **tolerate_expired**: on `read` if this is true then expired values that are still in the store (because of `keep_expired_for`) will still be returned.
+
+Use `keep_expired_for` and `tolerate_expired` together to support calculations that should be renewed periodically, but the calculation might occasionally fail, and readers should be able to read the slightly stale values.  If the calculation persistently fails, the jig will eventually be up.
 
 Supported Ruby versions and implementations
 ------------------------------------------------
